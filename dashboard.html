@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>GuardRail — LLM Output Validator</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0f1117;
+    --bg2: #1a1d27;
+    --bg3: #22263a;
+    --border: rgba(255,255,255,0.08);
+    --border2: rgba(255,255,255,0.14);
+    --text: #f0f2f8;
+    --text2: #8b90a8;
+    --text3: #555a72;
+    --red: #e24b4a;
+    --red-bg: rgba(226,75,74,0.12);
+    --red-border: rgba(226,75,74,0.3);
+    --green: #3db76a;
+    --green-bg: rgba(61,183,106,0.1);
+    --green-border: rgba(61,183,106,0.25);
+    --amber: #f0a500;
+    --amber-bg: rgba(240,165,0,0.1);
+    --amber-border: rgba(240,165,0,0.25);
+    --blue: #378add;
+    --blue-bg: rgba(55,138,221,0.1);
+    --radius: 10px;
+    --radius-sm: 6px;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 14px;
+    min-height: 100vh;
+    padding: 2rem;
+  }
+
+  .app { max-width: 900px; margin: 0 auto; }
+
+  /* Header */
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 2rem;
+  }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .brand-icon {
+    width: 38px; height: 38px;
+    background: var(--red-bg);
+    border: 1px solid var(--red-border);
+    border-radius: var(--radius-sm);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .brand-icon svg { width: 18px; height: 18px; }
+  .brand-name { font-size: 20px; font-weight: 600; color: var(--text); }
+  .brand-sub { font-size: 12px; color: var(--text2); margin-top: 1px; }
+  .version {
+    font-size: 11px; padding: 3px 9px;
+    border: 1px solid var(--border2);
+    border-radius: 20px; color: var(--text2);
+  }
+
+  /* Stats row */
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    margin-bottom: 1.5rem;
+  }
+  .stat {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+  }
+  .stat-label { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
+  .stat-value { font-size: 26px; font-weight: 600; color: var(--text); }
+  .stat-value.red { color: var(--red); }
+  .stat-value.green { color: var(--green); }
+
+  /* Main panels */
+  .panel {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.25rem;
+    margin-bottom: 1rem;
+  }
+  .panel-header {
+    display: flex; align-items: center; gap: 8px;
+    margin-bottom: 1rem;
+  }
+  .panel-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--text3);
+  }
+  .panel-title { font-size: 11px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: 0.06em; }
+
+  /* Presets */
+  .presets { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+  .preset {
+    font-size: 12px; padding: 5px 12px;
+    border-radius: 20px;
+    border: 1px solid var(--border2);
+    color: var(--text2); background: transparent; cursor: pointer;
+    transition: all 0.15s;
+  }
+  .preset:hover { background: var(--bg3); color: var(--text); border-color: var(--border2); }
+  .preset.active { background: var(--blue-bg); color: var(--blue); border-color: rgba(55,138,221,0.35); }
+
+  /* Inputs */
+  textarea {
+    width: 100%; height: 100px; resize: vertical;
+    background: var(--bg3); border: 1px solid var(--border2);
+    border-radius: var(--radius-sm); color: var(--text);
+    font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px;
+    padding: 10px 12px; line-height: 1.6;
+    margin-bottom: 10px;
+    transition: border-color 0.15s;
+  }
+  textarea:focus { outline: none; border-color: rgba(55,138,221,0.5); }
+
+  .input-row { display: flex; gap: 8px; }
+  .prompt-field {
+    flex: 1;
+    background: var(--bg3); border: 1px solid var(--border2);
+    border-radius: var(--radius-sm); color: var(--text);
+    font-size: 13px; padding: 0 12px; height: 38px;
+    transition: border-color 0.15s;
+  }
+  .prompt-field:focus { outline: none; border-color: rgba(55,138,221,0.5); }
+  .prompt-field::placeholder { color: var(--text3); }
+
+  .btn {
+    padding: 0 20px; height: 38px;
+    border-radius: var(--radius-sm);
+    font-size: 13px; font-weight: 500;
+    cursor: pointer; border: none;
+    transition: opacity 0.15s, transform 0.1s;
+    white-space: nowrap;
+  }
+  .btn:active { transform: scale(0.97); }
+  .btn-primary { background: var(--red); color: #fff; }
+  .btn-primary:hover { opacity: 0.88; }
+  .btn-ghost {
+    background: var(--bg3); color: var(--text2);
+    border: 1px solid var(--border2);
+  }
+  .btn-ghost:hover { color: var(--text); }
+
+  /* Result */
+  .result-banner {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 14px; border-radius: var(--radius-sm);
+    margin-bottom: 12px; font-weight: 500;
+  }
+  .result-banner.pass { background: var(--green-bg); border: 1px solid var(--green-border); color: var(--green); }
+  .result-banner.fail { background: var(--red-bg); border: 1px solid var(--red-border); color: var(--red); }
+  .result-icon { font-size: 16px; }
+  .result-label { flex: 1; font-size: 14px; }
+  .score-badge {
+    font-size: 12px; padding: 3px 10px;
+    border-radius: 20px; font-weight: 600;
+  }
+  .score-badge.pass { background: var(--green-bg); color: var(--green); border: 1px solid var(--green-border); }
+  .score-badge.fail { background: var(--red-bg); color: var(--red); border: 1px solid var(--red-border); }
+
+  /* Issues */
+  .issue {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 10px 12px; border-radius: var(--radius-sm);
+    background: var(--bg3); border: 1px solid var(--border);
+    margin-bottom: 6px;
+  }
+  .sev {
+    font-size: 10px; font-weight: 700; padding: 3px 8px;
+    border-radius: 20px; text-transform: uppercase;
+    letter-spacing: 0.04em; white-space: nowrap; margin-top: 1px;
+  }
+  .sev.high { background: var(--red-bg); color: var(--red); border: 1px solid var(--red-border); }
+  .sev.medium { background: var(--amber-bg); color: var(--amber); border: 1px solid var(--amber-border); }
+  .sev.low { background: var(--bg2); color: var(--text3); border: 1px solid var(--border); }
+  .issue-msg { font-size: 13px; color: var(--text); margin-bottom: 2px; }
+  .issue-rule { font-size: 11px; color: var(--text3); font-family: 'SF Mono', monospace; }
+
+  .empty { text-align: center; padding: 2rem; color: var(--text3); font-size: 13px; }
+
+  /* Log */
+  .log-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 0; border-bottom: 1px solid var(--border);
+    font-size: 12px;
+  }
+  .log-row:last-child { border-bottom: none; }
+  .log-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .log-dot.pass { background: var(--green); }
+  .log-dot.fail { background: var(--red); }
+  .log-text { flex: 1; color: var(--text2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .log-score { color: var(--text3); font-family: 'SF Mono', monospace; font-size: 11px; }
+  .log-time { color: var(--text3); font-size: 11px; }
+
+  /* Score bar */
+  .score-track {
+    height: 4px; background: var(--bg3);
+    border-radius: 2px; margin-top: 10px; overflow: hidden;
+  }
+  .score-fill {
+    height: 100%; border-radius: 2px;
+    transition: width 0.4s ease;
+  }
+
+  /* Responsive */
+  @media (max-width: 600px) {
+    body { padding: 1rem; }
+    .stats { grid-template-columns: repeat(2, 1fr); }
+    .input-row { flex-direction: column; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="header">
+    <div class="brand">
+      <div class="brand-icon">
+        <svg viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M9 1.5L2.5 5v4.5c0 3.6 2.8 7 6.5 7.5 3.7-.5 6.5-3.9 6.5-7.5V5L9 1.5z" stroke="#e24b4a" stroke-width="1.4" fill="none"/>
+          <path d="M6 9l2.2 2.2L12 7" stroke="#e24b4a" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <div>
+        <div class="brand-name">GuardRail</div>
+        <div class="brand-sub">LLM Output Validator</div>
+      </div>
+    </div>
+    <span class="version">v0.1.0</span>
+  </div>
+
+  <div class="stats">
+    <div class="stat">
+      <div class="stat-label">Total checked</div>
+      <div class="stat-value" id="s-total">0</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Passed</div>
+      <div class="stat-value green" id="s-pass">0</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Failed</div>
+      <div class="stat-value red" id="s-fail">0</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Avg risk score</div>
+      <div class="stat-value" id="s-avg">—</div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-header">
+      <div class="panel-dot" style="background:#378add"></div>
+      <div class="panel-title">AI output to validate</div>
+    </div>
+
+    <div class="presets">
+      <button class="preset" onclick="loadPreset('clean', this)">Clean response</button>
+      <button class="preset" onclick="loadPreset('ssn', this)">SSN leakage</button>
+      <button class="preset" onclick="loadPreset('email', this)">Email leakage</button>
+      <button class="preset" onclick="loadPreset('toxic', this)">Toxic content</button>
+      <button class="preset" onclick="loadPreset('aws', this)">AWS key leak</button>
+      <button class="preset" onclick="loadPreset('drift', this)">Topic drift</button>
+    </div>
+
+    <textarea id="output-input" placeholder="Paste an AI-generated response here to validate it..."></textarea>
+
+    <div class="input-row">
+      <input class="prompt-field" id="prompt-input" placeholder="Original prompt (optional — used for topic drift detection)" />
+      <button class="btn btn-ghost" onclick="clearAll()">Clear</button>
+      <button class="btn btn-primary" onclick="runValidation()">Validate output</button>
+    </div>
+  </div>
+
+  <div class="panel" id="result-panel" style="display:none">
+    <div class="panel-header">
+      <div class="panel-dot" id="result-dot"></div>
+      <div class="panel-title">Validation result</div>
+    </div>
+    <div id="result-banner"></div>
+    <div id="issues-list"></div>
+    <div class="score-track"><div class="score-fill" id="score-fill" style="width:0%"></div></div>
+  </div>
+
+  <div class="panel" id="log-panel" style="display:none">
+    <div class="panel-header">
+      <div class="panel-dot"></div>
+      <div class="panel-title">Validation history</div>
+    </div>
+    <div id="log-list"></div>
+  </div>
+
+</div>
+
+<script>
+const PRESETS = {
+  clean: { output: "A neural network is a machine learning model inspired by the human brain. It consists of layers of interconnected nodes that process data and learn patterns to make predictions.", prompt: "Explain what a neural network is." },
+  ssn: { output: "I've updated your profile. Your SSN 123-45-6789 has been saved along with your credit card number 4111111111111111.", prompt: "Update my profile." },
+  email: { output: "The customer john.smith@example.com called to report an issue with their order. Please follow up at their registered email address.", prompt: "Summarize the customer complaint." },
+  toxic: { output: "You should kill all unnecessary background processes. Any developer who wrote this code is an absolute idiot.", prompt: "How do I improve website performance?" },
+  aws: { output: "Set your AWS access key to AKIAIOSFODNN7EXAMPLE and run aws configure in your terminal to get started.", prompt: "How do I configure AWS CLI?" },
+  drift: { output: "The French Revolution began in 1789 with the storming of the Bastille. Napoleon later rose to power and conquered much of Europe.", prompt: "Write a Python function to sort a list." }
+};
+
+const PII = [
+  { name: "email", re: /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/, severity: "high", label: "Email address detected" },
+  { name: "ssn", re: /\b\d{3}-\d{2}-\d{4}\b/, severity: "high", label: "SSN detected" },
+  { name: "credit_card", re: /\b4[0-9]{12}(?:[0-9]{3})?\b/, severity: "high", label: "Credit card number detected" },
+  { name: "aws_key", re: /\bAKIA[0-9A-Z]{16}\b/, severity: "high", label: "AWS access key detected" },
+  { name: "phone", re: /\b(?:\+1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b/, severity: "medium", label: "Phone number detected" },
+  { name: "ip", re: /\b(?:\d{1,3}\.){3}\d{1,3}\b/, severity: "medium", label: "IP address detected" }
+];
+const HIGH_TOX = ["kill","murder","attack","bomb","exploit","hack into","ddos","ransomware"];
+const MED_TOX = ["idiot","moron","stupid","dumb","hate"];
+const STOPS = new Set(["the","a","an","is","it","in","on","and","or","to","of","for","with","this","that","be","are","was","were","i","you","he","she","we","they"]);
+const SEV_SCORE = { high: 0.4, medium: 0.2, low: 0.05 };
+
+let total=0, passed=0, failed=0, scoreSum=0, history=[];
+
+function kw(text){ return new Set((text.toLowerCase().match(/\b[a-z]{4,}\b/g)||[]).filter(w=>!STOPS.has(w))); }
+
+function validate(output, prompt){
+  const issues = [];
+  const lower = output.toLowerCase();
+  PII.forEach(p=>{ if(p.re.test(output)) issues.push({rule:"pii_detected", severity:p.severity, message:p.label}); });
+  for(const w of HIGH_TOX){ if(lower.includes(w)){ issues.push({rule:"toxicity", severity:"high", message:`High-risk term: "${w}"`}); break; } }
+  for(const w of MED_TOX){ if(lower.includes(w)){ issues.push({rule:"toxicity", severity:"medium", message:`Flagged term: "${w}"`}); break; } }
+  if(prompt && prompt.trim()){
+    const pk=kw(prompt), ok=kw(output);
+    const union=new Set([...pk,...ok]);
+    const inter=[...pk].filter(x=>ok.has(x));
+    if(union.size>0 && inter.length/union.size < 0.1)
+      issues.push({rule:"topic_drift", severity:"medium", message:"Output may have drifted from the original prompt"});
+  }
+  if(output.trim().length<10) issues.push({rule:"output_length", severity:"low", message:"Output is suspiciously short"});
+  const words=output.toLowerCase().split(/\s+/);
+  if(words.length>20 && new Set(words).size/words.length<0.2)
+    issues.push({rule:"repetition", severity:"medium", message:"Excessive repetition detected"});
+  const score=Math.min(1.0, issues.reduce((s,i)=>s+(SEV_SCORE[i.severity]||0),0));
+  const ok2=!["high","medium"].some(s=>new Set(issues.map(i=>i.severity)).has(s));
+  return { passed:ok2, score, issues };
+}
+
+function loadPreset(key, btn){
+  document.querySelectorAll('.preset').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('output-input').value = PRESETS[key].output;
+  document.getElementById('prompt-input').value = PRESETS[key].prompt;
+}
+
+function clearAll(){
+  document.getElementById('output-input').value='';
+  document.getElementById('prompt-input').value='';
+  document.getElementById('result-panel').style.display='none';
+  document.querySelectorAll('.preset').forEach(b=>b.classList.remove('active'));
+}
+
+function runValidation(){
+  const output = document.getElementById('output-input').value.trim();
+  const prompt = document.getElementById('prompt-input').value.trim();
+  if(!output) return;
+
+  const r = validate(output, prompt);
+  total++; scoreSum+=r.score;
+  if(r.passed) passed++; else failed++;
+
+  document.getElementById('s-total').textContent = total;
+  document.getElementById('s-pass').textContent = passed;
+  document.getElementById('s-fail').textContent = failed;
+  document.getElementById('s-avg').textContent = (scoreSum/total).toFixed(2);
+
+  const rp = document.getElementById('result-panel');
+  rp.style.display='block';
+  document.getElementById('result-dot').style.background = r.passed ? '#3db76a' : '#e24b4a';
+
+  const cls = r.passed ? 'pass' : 'fail';
+  const icon = r.passed ? '✓' : '✗';
+  const label = r.passed ? 'Passed — no issues detected' : `Failed — ${r.issues.length} issue${r.issues.length>1?'s':''} found`;
+  document.getElementById('result-banner').innerHTML = `
+    <div class="result-banner ${cls}">
+      <span class="result-icon">${icon}</span>
+      <span class="result-label">${label}</span>
+      <span class="score-badge ${cls}">risk ${r.score.toFixed(2)}</span>
+    </div>`;
+
+  document.getElementById('issues-list').innerHTML = r.issues.length === 0
+    ? `<div class="empty">All checks passed — output is safe to display.</div>`
+    : r.issues.map(i=>`
+        <div class="issue">
+          <span class="sev ${i.severity}">${i.severity}</span>
+          <div>
+            <div class="issue-msg">${i.message}</div>
+            <div class="issue-rule">${i.rule}</div>
+          </div>
+        </div>`).join('');
+
+  const fillColor = r.score > 0.5 ? '#e24b4a' : r.score > 0.2 ? '#f0a500' : '#3db76a';
+  const fill = document.getElementById('score-fill');
+  fill.style.background = fillColor;
+  fill.style.width = (r.score * 100) + '%';
+
+  const now = new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+  history.unshift({ passed:r.passed, score:r.score, text:output.slice(0,55)+(output.length>55?'...':''), time:now });
+  if(history.length>8) history.pop();
+
+  const lp = document.getElementById('log-panel');
+  lp.style.display='block';
+  document.getElementById('log-list').innerHTML = history.map(h=>`
+    <div class="log-row">
+      <div class="log-dot ${h.passed?'pass':'fail'}"></div>
+      <div class="log-text">${h.text}</div>
+      <div class="log-score">${h.score.toFixed(2)}</div>
+      <div class="log-time">${h.time}</div>
+    </div>`).join('');
+}
+</script>
+</body>
+</html>
