@@ -1,4 +1,4 @@
-# LLM Output Validator
+# GuardRail
 
 A Python library that validates AI-generated outputs for **PII leakage**, **toxic content**, and **topic drift** before they reach users.
 
