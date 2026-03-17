@@ -331,6 +331,13 @@ const SEV_SCORE = { high: 0.4, medium: 0.2, low: 0.05 };
 
 let total=0, passed=0, failed=0, scoreSum=0, history=[];
 
+function riskLevel(score){
+  if(score < 0.20) return "LOW RISK";
+  if(score < 0.50) return "MODERATE RISK";
+  if(score < 0.80) return "HIGH RISK";
+  return "CRITICAL";
+}
+
 function kw(text){ return new Set((text.toLowerCase().match(/\b[a-z]{4,}\b/g)||[]).filter(w=>!STOPS.has(w))); }
 
 function validate(output, prompt){
@@ -394,7 +401,7 @@ function runValidation(){
     <div class="result-banner ${cls}">
       <span class="result-icon">${icon}</span>
       <span class="result-label">${label}</span>
-      <span class="score-badge ${cls}">risk ${r.score.toFixed(2)}</span>
+      <span class="score-badge ${cls}">${riskLevel(r.score)} (score: ${r.score.toFixed(2)})</span>
     </div>`;
 
   document.getElementById('issues-list').innerHTML = r.issues.length === 0
@@ -408,7 +415,7 @@ function runValidation(){
           </div>
         </div>`).join('');
 
-  const fillColor = r.score > 0.5 ? '#e24b4a' : r.score > 0.2 ? '#f0a500' : '#3db76a';
+  const fillColor = r.score >= 0.80 ? '#e24b4a' : r.score >= 0.50 ? '#f0a500' : r.score >= 0.20 ? '#f0c040' : '#3db76a';
   const fill = document.getElementById('score-fill');
   fill.style.background = fillColor;
   fill.style.width = (r.score * 100) + '%';
@@ -423,7 +430,7 @@ function runValidation(){
     <div class="log-row">
       <div class="log-dot ${h.passed?'pass':'fail'}"></div>
       <div class="log-text">${h.text}</div>
-      <div class="log-score">${h.score.toFixed(2)}</div>
+      <div class="log-score">${riskLevel(h.score)} · ${h.score.toFixed(2)}</div>
       <div class="log-time">${h.time}</div>
     </div>`).join('');
 }

@@ -25,10 +25,20 @@ class ValidationResult:
     issues: list[ValidationIssue] = field(default_factory=list)
     metadata: dict = field(default_factory=dict)
 
+    def risk_level(self) -> str:
+        if self.score < 0.20:
+            return "LOW RISK"
+        elif self.score < 0.50:
+            return "MODERATE RISK"
+        elif self.score < 0.80:
+            return "HIGH RISK"
+        else:
+            return "CRITICAL"
+
     def summary(self) -> str:
         if self.passed:
-            return f"✅ PASSED (risk score: {self.score:.2f})"
-        lines = [f"❌ FAILED (risk score: {self.score:.2f})"]
+            return f"✅ PASSED — {self.risk_level()} (score: {self.score:.2f})"
+        lines = [f"❌ FAILED — {self.risk_level()} (score: {self.score:.2f})"]
         for issue in self.issues:
             lines.append(f"  [{issue.severity.upper()}] {issue.rule}: {issue.message}")
         return "\n".join(lines)
