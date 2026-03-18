@@ -83,6 +83,7 @@
   .stat-value { font-size: 26px; font-weight: 600; color: var(--text); }
   .stat-value.red { color: var(--red); }
   .stat-value.green { color: var(--green); }
+  .stat-sub { font-size: 11px; color: var(--text3); margin-top: 3px; }
 
   /* Main panels */
   .panel {
@@ -168,6 +169,7 @@
   .score-badge {
     font-size: 12px; padding: 3px 10px;
     border-radius: 20px; font-weight: 600;
+    white-space: nowrap;
   }
   .score-badge.pass { background: var(--green-bg); color: var(--green); border: 1px solid var(--green-border); }
   .score-badge.fail { background: var(--red-bg); color: var(--red); border: 1px solid var(--red-border); }
@@ -259,6 +261,7 @@
     <div class="stat">
       <div class="stat-label">Avg risk score</div>
       <div class="stat-value" id="s-avg">—</div>
+      <div class="stat-sub" id="s-avg-level"></div>
     </div>
   </div>
 
@@ -388,7 +391,9 @@ function runValidation(){
   document.getElementById('s-total').textContent = total;
   document.getElementById('s-pass').textContent = passed;
   document.getElementById('s-fail').textContent = failed;
-  document.getElementById('s-avg').textContent = (scoreSum/total).toFixed(2);
+  const avg = scoreSum / total;
+  document.getElementById('s-avg').textContent = avg.toFixed(2);
+  document.getElementById('s-avg-level').textContent = riskLevel(avg);
 
   const rp = document.getElementById('result-panel');
   rp.style.display='block';
@@ -430,7 +435,7 @@ function runValidation(){
     <div class="log-row">
       <div class="log-dot ${h.passed?'pass':'fail'}"></div>
       <div class="log-text">${h.text}</div>
-      <div class="log-score">${riskLevel(h.score)} · ${h.score.toFixed(2)}</div>
+      <div class="log-score" style="color:${h.score>=0.80?'var(--red)':h.score>=0.50?'var(--amber)':h.score>=0.20?'#f0c040':'var(--green)'}">${riskLevel(h.score)} · ${h.score.toFixed(2)}</div>
       <div class="log-time">${h.time}</div>
     </div>`).join('');
 }
